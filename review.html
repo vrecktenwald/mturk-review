@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MTurk - Student Answer Review</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
+        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .q { border: 2px solid #e0e0e0; padding: 20px; margin: 18px 0; border-radius: 10px; background: #fafafa; }
+        .student { color: #d32f2f; font-weight: bold; }
+        .correct { color: #2e7d32; font-weight: bold; }
+        h1 { color: #1e3a8a; }
+        button { padding: 14px 28px; font-size: 17px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Student Answer Review</h1>
+        
+        <p><strong>Student:</strong> <span id="studentName">Unknown</span></p>
+        <p><strong>Worksheet:</strong> <span id="worksheetTitle">Unknown</span></p>
+
+        <div id="questionsContainer"></div>
+
+        <h3>Overall Comments (Optional)</h3>
+        <textarea id="overallComments" rows="6" style="width:100%;"></textarea>
+
+        <br><br>
+        <button onclick="submitReview()">Submit Review to MTurk</button>
+    </div>
+
+    <script>
+        // Read data from URL parameters
+        const params = new URLSearchParams(window.location.search);
+        
+        document.getElementById('studentName').textContent = params.get('student') || 'Unknown Student';
+        document.getElementById('worksheetTitle').textContent = params.get('worksheet') || 'Unknown Worksheet';
+
+        // Example mismatches (In real use, you can pass JSON via another parameter later)
+        const mismatches = [
+            { number: "01", question: "3 x 2", studentAnswer: "5", correctAnswer: "6" },
+            { number: "03", question: "2 x 2", studentAnswer: "4", correctAnswer: "6" }
+        ];
+
+        // Render questions
+        const container = document.getElementById('questionsContainer');
+        mismatches.forEach(item => {
+            container.innerHTML += `
+                <div class="q">
+                    <strong>Problem #${item.number}:</strong> ${item.question}<br/><br/>
+                    <strong>Student Answer:</strong> <span class="student">${item.studentAnswer}</span><br/>
+                    <strong>Correct Answer:</strong> <span class="correct">${item.correctAnswer}</span><br/><br/>
+                    
+                    <strong>Your Review:</strong><br/>
+                    <input type="radio" name="review_${item.number}" value="acceptable" required> Acceptable / Minor variation<br/>
+                    <input type="radio" name="review_${item.number}" value="incorrect"> Clearly Incorrect<br/><br/>
+                    
+                    <strong>Your Corrected Answer:</strong><br/>
+                    <input type="text" name="correction_${item.number}" placeholder="Enter correct answer if needed">
+                </div>`;
+        });
+
+        function submitReview() {
+            alert("✅ Review submitted successfully!\n\nThank you for your work.");
+            // In production, you would send data to your backend here
+        }
+    </script>
+</body>
+</html>
