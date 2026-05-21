@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MTurk - Student Answer Review</title>
+    <title>Student Answer Review</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
         .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
+        .header-info { background: #f1f5f9; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 0.95em; }
+        .info-label { font-weight: bold; color: #444; }
         .q { border: 2px solid #e0e0e0; padding: 20px; margin: 18px 0; border-radius: 10px; background: #fafafa; }
         .student { color: #d32f2f; font-weight: bold; }
         .correct { color: #2e7d32; font-weight: bold; }
-        h1 { color: #1e3a8a; }
         button { padding: 14px 28px; font-size: 17px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
         button:hover { background: #1d4ed8; }
     </style>
@@ -19,8 +20,14 @@
     <div class="container">
         <h1>Student Answer Review</h1>
         
-        <p><strong>Student:</strong> <span id="studentName">Unknown</span></p>
-        <p><strong>Worksheet:</strong> <span id="worksheetTitle">Unknown</span></p>
+        <div class="header-info">
+            <strong>Student:</strong> <span id="studentName">Unknown</span><br>
+            <strong>Worksheet:</strong> <span id="worksheetTitle">Unknown</span><br>
+            <span id="batchInfo" style="display:none;">
+                <strong>Batch ID:</strong> <span id="batchId"></span> | 
+                <strong>Page:</strong> <span id="pageIndex"></span>
+            </span>
+        </div>
 
         <div id="questionsContainer"></div>
 
@@ -28,23 +35,32 @@
         <textarea id="overallComments" rows="6" style="width:100%;"></textarea>
 
         <br><br>
-        <button onclick="submitReview()">Submit Review to MTurk</button>
+        <button onclick="submitReview()">Submit Review</button>
     </div>
 
     <script>
-        // Read data from URL parameters
         const params = new URLSearchParams(window.location.search);
-        
+
+        // Display main information
         document.getElementById('studentName').textContent = params.get('student') || 'Unknown Student';
         document.getElementById('worksheetTitle').textContent = params.get('worksheet') || 'Unknown Worksheet';
 
-        // Example mismatches (In real use, you can pass JSON via another parameter later)
+        // Display Batch ID and Page Index (read-only, less prominent)
+        const batchId = params.get('batchId');
+        const pageIndex = params.get('pageIndex');
+        
+        if (batchId || pageIndex) {
+            document.getElementById('batchInfo').style.display = 'inline';
+            if (batchId) document.getElementById('batchId').textContent = batchId;
+            if (pageIndex) document.getElementById('pageIndex').textContent = pageIndex;
+        }
+
+        // Sample mismatches (replace with real data later if needed)
         const mismatches = [
             { number: "01", question: "3 x 2", studentAnswer: "5", correctAnswer: "6" },
             { number: "03", question: "2 x 2", studentAnswer: "4", correctAnswer: "6" }
         ];
 
-        // Render questions
         const container = document.getElementById('questionsContainer');
         mismatches.forEach(item => {
             container.innerHTML += `
@@ -64,7 +80,7 @@
 
         function submitReview() {
             alert("✅ Review submitted successfully!\n\nThank you for your work.");
-            // In production, you would send data to your backend here
+            // In production, you would send data back here
         }
     </script>
 </body>
