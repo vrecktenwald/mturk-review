@@ -78,10 +78,61 @@
                 </div>`;
         });
 
-        function submitReview() {
-            alert("✅ Review submitted successfully!\n\nThank you for your work.");
-            // In production, you would send data back here
-        }
+                function submitHIT() {
+                // Read values dynamically from URL parameters (recommended)
+                const urlParams = new URLSearchParams(window.location.search);
+                
+                const reviewData = {
+                    student: urlParams.get('student') || "Unknown",
+                    worksheet: urlParams.get('worksheet') || "Unknown",
+                    batchId: urlParams.get('batchId') || "",
+                    pageIndex: urlParams.get('pageIndex') || "",
+                    mismatchesReviewed: document.getElementById('mismatchCount') ? 
+                                        parseInt(document.getElementById('mismatchCount').textContent) : 0,
+                    
+                    // Add any other dynamic fields from your page
+                    overallFeedback: document.getElementById('overallComments') ? 
+                                    document.getElementById('overallComments').value : "",
+                    
+                    timestamp: new Date().toISOString(),
+                    // You can add more fields as needed
+                };
+
+                // Create form for MTurk submission
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit';  // Use production URL when live
+
+                // Required: assignmentId
+                const assignmentId = urlParams.get('assignmentId');
+                if (assignmentId) {
+                    const input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = 'assignmentId';
+                    input.value = assignmentId;
+                    form.appendChild(input);
+                }
+
+                // Send all your data
+                const dataInput = document.createElement('input');
+                dataInput.type = 'hidden';
+                dataInput.name = 'answer';                    // MTurk standard field name
+                dataInput.value = JSON.stringify(reviewData);
+                form.appendChild(dataInput);
+
+                document.body.appendChild(form);
+                form.submit();
+            }
     </script>
+
+    <!-- Put this near the end of your page, before the closing </body> tag -->
+
+    <div style="margin-top: 30px; text-align: center;">
+        <button onclick="submitHIT()" 
+                style="padding: 12px 24px; font-size: 16px; background-color: #ff9900; color: white; border: none; border-radius: 4px; cursor: pointer;">
+            Submit Review to MTurk
+        </button>
+    </div>
+
 </body>
 </html>
