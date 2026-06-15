@@ -14,6 +14,7 @@
         .correct { color: #2e7d32; font-weight: bold; }
         button { padding: 14px 28px; font-size: 17px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
         button:hover { background: #1d4ed8; }
+        .warning { color: #d32f2f; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -23,6 +24,9 @@
         <div class="header-info">
             <strong>Student:</strong> <span id="studentName">Unknown</span><br>
             <strong>Worksheet:</strong> <span id="worksheetTitle">Unknown</span><br>
+            <span id="totalWrongInfo" style="display:none;">
+                <strong>Total Wrong Answers:</strong> <span id="totalWrong" class="warning"></span>
+            </span><br>
             <span id="batchInfo" style="display:none;">
                 <strong>Batch ID:</strong> <span id="batchId"></span> | 
                 <strong>Page:</strong> <span id="pageIndex"></span>
@@ -35,104 +39,148 @@
         <textarea id="overallComments" rows="6" style="width:100%;"></textarea>
 
         <br><br>
-        <button onclick="submitReview()">Submit Review</button>
-    </div>
-
-    <script>
-        const params = new URLSearchParams(window.location.search);
-
-        // Display main information
-        document.getElementById('studentName').textContent = params.get('student') || 'Unknown Student';
-        document.getElementById('worksheetTitle').textContent = params.get('worksheet') || 'Unknown Worksheet';
-
-        // Display Batch ID and Page Index (read-only, less prominent)
-        const batchId = params.get('batchId');
-        const pageIndex = params.get('pageIndex');
-        
-        if (batchId || pageIndex) {
-            document.getElementById('batchInfo').style.display = 'inline';
-            if (batchId) document.getElementById('batchId').textContent = batchId;
-            if (pageIndex) document.getElementById('pageIndex').textContent = pageIndex;
-        }
-
-        // Sample mismatches (replace with real data later if needed)
-        const mismatches = [
-            { number: "01", question: "3 x 2", studentAnswer: "5", correctAnswer: "6" },
-            { number: "03", question: "2 x 2", studentAnswer: "4", correctAnswer: "6" }
-        ];
-
-        const container = document.getElementById('questionsContainer');
-        mismatches.forEach(item => {
-            container.innerHTML += `
-                <div class="q">
-                    <strong>Problem #${item.number}:</strong> ${item.question}<br/><br/>
-                    <strong>Student Answer:</strong> <span class="student">${item.studentAnswer}</span><br/>
-                    <strong>Correct Answer:</strong> <span class="correct">${item.correctAnswer}</span><br/><br/>
-                    
-                    <strong>Your Review:</strong><br/>
-                    <input type="radio" name="review_${item.number}" value="acceptable" required> Acceptable / Minor variation<br/>
-                    <input type="radio" name="review_${item.number}" value="incorrect"> Clearly Incorrect<br/><br/>
-                    
-                    <strong>Your Corrected Answer:</strong><br/>
-                    <input type="text" name="correction_${item.number}" placeholder="Enter correct answer if needed">
-                </div>`;
-        });
-
-                function submitHIT() {
-                // Read values dynamically from URL parameters (recommended)
-                const urlParams = new URLSearchParams(window.location.search);
-                
-                const reviewData = {
-                    student: urlParams.get('student') || "Unknown",
-                    worksheet: urlParams.get('worksheet') || "Unknown",
-                    batchId: urlParams.get('batchId') || "",
-                    pageIndex: urlParams.get('pageIndex') || "",
-                    mismatchesReviewed: document.getElementById('mismatchCount') ? 
-                                        parseInt(document.getElementById('mismatchCount').textContent) : 0,
-                    
-                    // Add any other dynamic fields from your page
-                    overallFeedback: document.getElementById('overallComments') ? 
-                                    document.getElementById('overallComments').value : "",
-                    
-                    timestamp: new Date().toISOString(),
-                    // You can add more fields as needed
-                };
-
-                // Create form for MTurk submission
-                const form = document.createElement('form');
-                form.method = 'POST';
-                form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit';  // Use production URL when live
-
-                // Required: assignmentId
-                const assignmentId = urlParams.get('assignmentId');
-                if (assignmentId) {
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'assignmentId';
-                    input.value = assignmentId;
-                    form.appendChild(input);
-                }
-
-                // Send all your data
-                const dataInput = document.createElement('input');
-                dataInput.type = 'hidden';
-                dataInput.name = 'answer';                    // MTurk standard field name
-                dataInput.value = JSON.stringify(reviewData);
-                form.appendChild(dataInput);
-
-                document.body.appendChild(form);
-                form.submit();
-            }
-    </script>
-
-    <!-- Put this near the end of your page, before the closing </body> tag -->
-
-    <div style="margin-top: 30px; text-align: center;">
         <button onclick="submitHIT()" 
                 style="padding: 12px 24px; font-size: 16px; background-color: #ff9900; color: white; border: none; border-radius: 4px; cursor: pointer;">
             Submit Review to MTurk
         </button>
     </div>
 
+    <script>
+        const params = new URLSearchParams(window.location.search);
+
+        // === Parse incoming data (preferred method) ===
+        let reviewData = {
+            studentName: params.get('student') || 'Unknown Student',
+            worksheetTitle: params.get('worksheet') || 'Unknown Worksheet',
+            totalWrong: 0,
+            mismatches: []
+        };
+
+        // Try to get full JSON from 'data' parameter (recommended)
+        const dataParam = params.get('data');
+        if (dataParam) {
+            try {
+                const parsed = JSON.parse(decodeURIComponent(dataParam));
+                reviewData = { ...reviewData, ...parsed };
+            } catch (e) {
+                console.error("Failed to parse 'data' parameter", e);
+            }
+        } 
+        // Fallback: old 'mismatches' parameter
+        else {
+            const mismatchesParam = params.get('mismatches');
+            if (mismatchesParam) {
+                try {
+                    reviewData.mismatches = JSON.parse(decodeURIComponent(mismatchesParam));
+                } catch (e) {
+                    console.error("Failed to parse 'mismatches' parameter", e);
+                }
+            }
+        }
+
+        // Populate header
+        document.getElementById('studentName').textContent = reviewData.studentName || reviewData.student || 'Unknown';
+        document.getElementById('worksheetTitle').textContent = reviewData.worksheetTitle || reviewData.worksheet || 'Unknown';
+
+        if (reviewData.totalWrong > 0) {
+            document.getElementById('totalWrong').textContent = reviewData.totalWrong;
+            document.getElementById('totalWrongInfo').style.display = 'inline';
+        }
+
+        // Batch info
+        const batchId = params.get('batchId');
+        const pageIndex = params.get('pageIndex');
+        if (batchId || pageIndex) {
+            document.getElementById('batchInfo').style.display = 'inline';
+            if (batchId) document.getElementById('batchId').textContent = batchId;
+            if (pageIndex) document.getElementById('pageIndex').textContent = pageIndex;
+        }
+
+        // === Dynamically render mismatches ===
+        const container = document.getElementById('questionsContainer');
+        
+        if (reviewData.mismatches && reviewData.mismatches.length > 0) {
+            reviewData.mismatches.forEach(item => {
+                const html = `
+                    <div class="q">
+                        <strong>Problem #${item.number}:</strong> ${item.question}<br/><br/>
+                        <strong>Student Answer:</strong> <span class="student">${item.studentAnswer}</span><br/>
+                        <strong>Correct Answer:</strong> <span class="correct">${item.correctAnswer}</span><br/><br/>
+                        
+                        <strong>Your Review:</strong><br/>
+                        <label>
+                            <input type="radio" name="review_${item.number}" value="acceptable" required> 
+                            Acceptable / Minor variation
+                        </label><br/>
+                        <label>
+                            <input type="radio" name="review_${item.number}" value="incorrect"> 
+                            Clearly Incorrect
+                        </label><br/><br/>
+                        
+                        <strong>Your Corrected Answer (if needed):</strong><br/>
+                        <input type="text" name="correction_${item.number}" placeholder="Enter corrected answer" style="width:100%; padding:8px;">
+                    </div>`;
+                container.innerHTML += html;
+            });
+        } else {
+            container.innerHTML = '<p style="color:#666;">No mismatches found for this student.</p>';
+        }
+
+        // === Submit to MTurk ===
+        function submitHIT() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const assignmentId = urlParams.get('assignmentId');
+
+            // Collect per-question reviews
+            const mismatchReviews = [];
+            reviewData.mismatches.forEach(item => {
+                const reviewRadio = document.querySelector(`input[name="review_${item.number}"]:checked`);
+                const correctionInput = document.querySelector(`input[name="correction_${item.number}"]`);
+
+                mismatchReviews.push({
+                    number: item.number,
+                    question: item.question,
+                    studentAnswer: item.studentAnswer,
+                    correctAnswer: item.correctAnswer,
+                    review: reviewRadio ? reviewRadio.value : null,
+                    correctedAnswer: correctionInput ? correctionInput.value.trim() : ""
+                });
+            });
+
+            const finalData = {
+                student: reviewData.studentName || reviewData.student,
+                worksheet: reviewData.worksheetTitle || reviewData.worksheet,
+                batchId: urlParams.get('batchId') || "",
+                pageIndex: urlParams.get('pageIndex') || "",
+                totalWrong: reviewData.totalWrong || 0,
+                mismatchesReviewed: mismatchReviews,
+                overallComments: document.getElementById('overallComments').value.trim(),
+                timestamp: new Date().toISOString(),
+                assignmentId: assignmentId
+            };
+
+            // Create MTurk submission form
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit';
+
+            if (assignmentId) {
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'assignmentId';
+                input.value = assignmentId;
+                form.appendChild(input);
+            }
+
+            const dataInput = document.createElement('input');
+            dataInput.type = 'hidden';
+            dataInput.name = 'answer';
+            dataInput.value = JSON.stringify(finalData);
+            form.appendChild(dataInput);
+
+            document.body.appendChild(form);
+            form.submit();
+        }
+    </script>
 </body>
 </html>
