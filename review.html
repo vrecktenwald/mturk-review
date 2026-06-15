@@ -48,7 +48,6 @@
     <script>
         const params = new URLSearchParams(window.location.search);
 
-        // === Parse incoming data (preferred method) ===
         let reviewData = {
             studentName: params.get('student') || 'Unknown Student',
             worksheetTitle: params.get('worksheet') || 'Unknown Worksheet',
@@ -56,25 +55,14 @@
             mismatches: []
         };
 
-        // Try to get full JSON from 'data' parameter (recommended)
+        // Parse full data from 'data' parameter (compact version)
         const dataParam = params.get('data');
         if (dataParam) {
             try {
                 const parsed = JSON.parse(decodeURIComponent(dataParam));
                 reviewData = { ...reviewData, ...parsed };
             } catch (e) {
-                console.error("Failed to parse 'data' parameter", e);
-            }
-        } 
-        // Fallback: old 'mismatches' parameter
-        else {
-            const mismatchesParam = params.get('mismatches');
-            if (mismatchesParam) {
-                try {
-                    reviewData.mismatches = JSON.parse(decodeURIComponent(mismatchesParam));
-                } catch (e) {
-                    console.error("Failed to parse 'mismatches' parameter", e);
-                }
+                console.error("Failed to parse data parameter", e);
             }
         }
 
@@ -96,29 +84,23 @@
             if (pageIndex) document.getElementById('pageIndex').textContent = pageIndex;
         }
 
-        // === Dynamically render mismatches ===
+        // Render mismatches
         const container = document.getElementById('questionsContainer');
         
         if (reviewData.mismatches && reviewData.mismatches.length > 0) {
             reviewData.mismatches.forEach(item => {
                 const html = `
                     <div class="q">
-                        <strong>Problem #${item.number}:</strong> ${item.question}<br/><br/>
-                        <strong>Student Answer:</strong> <span class="student">${item.studentAnswer}</span><br/>
-                        <strong>Correct Answer:</strong> <span class="correct">${item.correctAnswer}</span><br/><br/>
+                        <strong>Problem #${item.Number || item.number}:</strong> ${item.Question || item.question}<br/><br/>
+                        <strong>Student Answer:</strong> <span class="student">${item.StudentAnswer || item.studentAnswer}</span><br/>
+                        <strong>Correct Answer:</strong> <span class="correct">${item.CorrectAnswer || item.correctAnswer}</span><br/><br/>
                         
                         <strong>Your Review:</strong><br/>
-                        <label>
-                            <input type="radio" name="review_${item.number}" value="acceptable" required> 
-                            Acceptable / Minor variation
-                        </label><br/>
-                        <label>
-                            <input type="radio" name="review_${item.number}" value="incorrect"> 
-                            Clearly Incorrect
-                        </label><br/><br/>
+                        <label><input type="radio" name="review_${item.Number || item.number}" value="acceptable" required> Acceptable / Minor variation</label><br/>
+                        <label><input type="radio" name="review_${item.Number || item.number}" value="incorrect"> Clearly Incorrect</label><br/><br/>
                         
                         <strong>Your Corrected Answer (if needed):</strong><br/>
-                        <input type="text" name="correction_${item.number}" placeholder="Enter corrected answer" style="width:100%; padding:8px;">
+                        <input type="text" name="correction_${item.Number || item.number}" placeholder="Enter corrected answer" style="width:100%; padding:8px;">
                     </div>`;
                 container.innerHTML += html;
             });
@@ -126,22 +108,21 @@
             container.innerHTML = '<p style="color:#666;">No mismatches found for this student.</p>';
         }
 
-        // === Submit to MTurk ===
         function submitHIT() {
             const urlParams = new URLSearchParams(window.location.search);
             const assignmentId = urlParams.get('assignmentId');
 
-            // Collect per-question reviews
             const mismatchReviews = [];
-            reviewData.mismatches.forEach(item => {
-                const reviewRadio = document.querySelector(`input[name="review_${item.number}"]:checked`);
-                const correctionInput = document.querySelector(`input[name="correction_${item.number}"]`);
+            (reviewData.mismatches || []).forEach(item => {
+                const num = item.Number || item.number;
+                const reviewRadio = document.querySelector(`input[name="review_${num}"]:checked`);
+                const correctionInput = document.querySelector(`input[name="correction_${num}"]`);
 
                 mismatchReviews.push({
-                    number: item.number,
-                    question: item.question,
-                    studentAnswer: item.studentAnswer,
-                    correctAnswer: item.correctAnswer,
+                    number: num,
+                    question: item.Question || item.question,
+                    studentAnswer: item.StudentAnswer || item.studentAnswer,
+                    correctAnswer: item.CorrectAnswer || item.correctAnswer,
                     review: reviewRadio ? reviewRadio.value : null,
                     correctedAnswer: correctionInput ? correctionInput.value.trim() : ""
                 });
@@ -155,11 +136,9 @@
                 totalWrong: reviewData.totalWrong || 0,
                 mismatchesReviewed: mismatchReviews,
                 overallComments: document.getElementById('overallComments').value.trim(),
-                timestamp: new Date().toISOString(),
-                assignmentId: assignmentId
+                timestamp: new Date().toISOString()
             };
 
-            // Create MTurk submission form
             const form = document.createElement('form');
             form.method = 'POST';
             form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit';
