@@ -12,18 +12,21 @@
         .q { border: 2px solid #e0e0e0; padding: 20px; margin: 18px 0; border-radius: 10px; background: #fafafa; }
         .student { color: #d32f2f; font-weight: bold; }
         .correct { color: #2e7d32; font-weight: bold; }
+        .type-mismatch { background: #fee2e2; border-left: 5px solid #ef4444; }
+        .type-lowconf { background: #fef3c7; border-left: 5px solid #f59e0b; }
+        .type-unrecognized { background: #dbeafe; border-left: 5px solid #3b82f6; }
         .auth-info { background: #e0f2fe; padding: 8px 12px; border-radius: 6px; font-size: 0.9em; margin-bottom: 15px; }
         button { padding: 14px 28px; font-size: 17px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
         button:hover { background: #1d4ed8; }
         button:disabled { background: #94a3b8; cursor: not-allowed; }
         .warning { color: #d32f2f; font-weight: bold; }
+        .note { font-style: italic; color: #666; margin-top: 8px; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Student Answer Review</h1>
         
-        <!-- MTurk Worker Authentication Info -->
         <div class="auth-info" id="authInfo" style="display:none;">
             <strong>MTurk Worker ID:</strong> <span id="workerId">Loading...</span><br>
             <strong>Assignment ID:</strong> <span id="assignmentId">Loading...</span><br>
@@ -33,8 +36,8 @@
         <div class="header-info">
             <strong>Student:</strong> <span id="studentName">Unknown</span><br>
             <strong>Worksheet:</strong> <span id="worksheetTitle">Unknown</span><br>
-            <span id="totalWrongInfo" style="display:none;">
-                <strong>Total Wrong Answers:</strong> <span id="totalWrong" class="warning"></span>
+            <span id="totalInfo" style="display:none;">
+                <strong>Items to Review:</strong> <span id="totalItems" class="warning"></span>
             </span><br>
             <span id="batchInfo" style="display:none;">
                 <strong>Batch ID:</strong> <span id="batchId"></span> | 
@@ -54,45 +57,40 @@
     <script>
         const params = new URLSearchParams(window.location.search);
 
-        // === MTurk Worker Authentication ===
+        // MTurk Worker Authentication
         const workerId = params.get('workerId');
         const assignmentId = params.get('assignmentId');
         const hitId = params.get('hitId');
 
-        // Show authentication info
         if (workerId) {
             document.getElementById('workerId').textContent = workerId;
             document.getElementById('assignmentId').textContent = assignmentId || 'N/A';
             document.getElementById('hitId').textContent = hitId || 'N/A';
             document.getElementById('authInfo').style.display = 'block';
         } else {
-            document.getElementById('authInfo').innerHTML = `
-                <strong style="color:#d32f2f;">⚠️ Warning: Not accessed through MTurk</strong><br>
-                This page should be accessed via a Mechanical Turk HIT.
-            `;
+            document.getElementById('authInfo').innerHTML = `<strong style="color:#d32f2f;">⚠️ Warning: Not accessed through MTurk</strong>`;
             document.getElementById('authInfo').style.display = 'block';
         }
 
-        // Disable submit button if no assignmentId (important for security)
         if (!assignmentId) {
             document.getElementById('submitBtn').disabled = true;
         }
 
+        // Parse data from URL
         let reviewData = {
-            studentName: params.get('student') || 'Unknown Student',
-            worksheetTitle: params.get('worksheet') || 'Unknown Worksheet',
-            totalWrong: 0,
-            mismatches: []
+            studentName: params.get('student') || 'Unknown',
+            worksheetTitle: params.get('worksheet') || 'Unknown',
+            totalItemsToReview: 0,
+            reviewItems: []
         };
 
-        // Parse data from URL
         const dataParam = params.get('data');
         if (dataParam) {
             try {
                 const parsed = JSON.parse(decodeURIComponent(dataParam));
                 reviewData = { ...reviewData, ...parsed };
             } catch (e) {
-                console.error("Failed to parse data parameter", e);
+                console.error("Failed to parse data:", e);
             }
         }
 
@@ -100,9 +98,9 @@
         document.getElementById('studentName').textContent = reviewData.studentName || reviewData.student || 'Unknown';
         document.getElementById('worksheetTitle').textContent = reviewData.worksheetTitle || reviewData.worksheet || 'Unknown';
 
-        if (reviewData.totalWrong > 0) {
-            document.getElementById('totalWrong').textContent = reviewData.totalWrong;
-            document.getElementById('totalWrongInfo').style.display = 'inline';
+        if (reviewData.totalItemsToReview > 0) {
+            document.getElementById('totalItems').textContent = reviewData.totalItemsToReview;
+            document.getElementById('totalInfo').style.display = 'inline';
         }
 
         // Batch info
@@ -114,17 +112,30 @@
             if (pageIndex) document.getElementById('pageIndex').textContent = pageIndex;
         }
 
-        // Render mismatches
+        // === Render Review Items (Fixed) ===
         const container = document.getElementById('questionsContainer');
         
-        if (reviewData.mismatches && reviewData.mismatches.length > 0) {
-            reviewData.mismatches.forEach(item => {
-                const num = item.Number || item.number;
+        const items = reviewData.reviewItems || reviewData.mismatches || [];   // Support both old and new
+
+        if (items.length > 0) {
+            items.forEach(item => {
+                const num = item.Number || item.number || '';
+                const type = item.Type || item.type || 'Mismatch';
+                const notes = item.Notes || item.notes || '';
+
+                let typeClass = 'type-mismatch';
+                if (type === 'LowConfidence') typeClass = 'type-lowconf';
+                if (type === 'Unrecognized') typeClass = 'type-unrecognized';
+
                 const html = `
-                    <div class="q">
-                        <strong>Problem #${num}:</strong> ${item.Question || item.question}<br/><br/>
-                        <strong>Student Answer:</strong> <span class="student">${item.StudentAnswer || item.studentAnswer}</span><br/>
-                        <strong>Correct Answer:</strong> <span class="correct">${item.CorrectAnswer || item.correctAnswer}</span><br/><br/>
+                    <div class="q ${typeClass}">
+                        <strong>Problem #${num}:</strong> ${item.Question || item.question}<br/>
+                        <strong style="color:#666;">Type:</strong> <strong>${type}</strong><br/><br/>
+                        
+                        <strong>Student Answer:</strong> <span class="student">${item.StudentAnswer || item.studentAnswer || '—'}</span><br/>
+                        <strong>Correct Answer:</strong> <span class="correct">${item.CorrectAnswer || item.correctAnswer || '—'}</span><br/><br/>
+                        
+                        ${notes ? `<div class="note"><strong>Notes:</strong> ${notes}</div><br/>` : ''}
                         
                         <strong>Your Review:</strong><br/>
                         <label><input type="radio" name="review_${num}" value="acceptable" required> Acceptable / Minor variation</label><br/>
@@ -136,27 +147,28 @@
                 container.innerHTML += html;
             });
         } else {
-            container.innerHTML = '<p style="color:#666;">No mismatches found for this student.</p>';
+            container.innerHTML = '<p style="color:#666; font-size:1.1em;">No items found for review.</p>';
         }
 
-        // Submit function with worker authentication
+        // Submit function
         function submitHIT() {
             if (!assignmentId) {
-                alert("Error: Missing Assignment ID. Please access this task through Mechanical Turk.");
+                alert("Error: Missing Assignment ID.");
                 return;
             }
 
-            const mismatchReviews = [];
-            (reviewData.mismatches || []).forEach(item => {
-                const num = item.Number || item.number;
+            const reviewedItems = [];
+            (items || []).forEach(item => {
+                const num = item.Number || item.number || '';
                 const reviewRadio = document.querySelector(`input[name="review_${num}"]:checked`);
                 const correctionInput = document.querySelector(`input[name="correction_${num}"]`);
 
-                mismatchReviews.push({
+                reviewedItems.push({
                     number: num,
                     question: item.Question || item.question,
                     studentAnswer: item.StudentAnswer || item.studentAnswer,
                     correctAnswer: item.CorrectAnswer || item.correctAnswer,
+                    type: item.Type || item.type,
                     review: reviewRadio ? reviewRadio.value : null,
                     correctedAnswer: correctionInput ? correctionInput.value.trim() : ""
                 });
@@ -166,12 +178,10 @@
                 workerId: workerId,
                 assignmentId: assignmentId,
                 hitId: hitId,
-                student: reviewData.studentName || reviewData.student,
-                worksheet: reviewData.worksheetTitle || reviewData.worksheet,
-                batchId: params.get('batchId') || "",
-                pageIndex: params.get('pageIndex') || "",
-                totalWrong: reviewData.totalWrong || 0,
-                mismatchesReviewed: mismatchReviews,
+                student: reviewData.studentName,
+                worksheet: reviewData.worksheetTitle,
+                totalItemsReviewed: reviewedItems.length,
+                reviewedItems: reviewedItems,
                 overallComments: document.getElementById('overallComments').value.trim(),
                 timestamp: new Date().toISOString()
             };
