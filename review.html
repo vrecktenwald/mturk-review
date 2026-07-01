@@ -5,50 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Student Answer Review</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f8f9fa; }
-        .container { max-width: 1000px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 0 15px rgba(0,0,0,0.1); }
-        .header-info { background: #f1f5f9; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; font-size: 0.95em; }
-        .info-label { font-weight: bold; color: #444; }
-        .q { border: 2px solid #e0e0e0; padding: 20px; margin: 18px 0; border-radius: 10px; background: #fafafa; }
-        .student { color: #d32f2f; font-weight: bold; }
-        .correct { color: #2e7d32; font-weight: bold; }
-        .type-mismatch { background: #fee2e2; border-left: 5px solid #ef4444; }
-        .type-lowconf { background: #fef3c7; border-left: 5px solid #f59e0b; }
-        .type-unrecognized { background: #dbeafe; border-left: 5px solid #3b82f6; }
-        .auth-info { background: #e0f2fe; padding: 8px 12px; border-radius: 6px; font-size: 0.9em; margin-bottom: 15px; }
-        button { padding: 14px 28px; font-size: 17px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .header { background: #f1f5f9; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; }
+        .q { 
+            border: 2px solid #e2e8f0; 
+            padding: 20px; 
+            margin: 18px 0; 
+            border-radius: 10px; 
+            background: #fafafa; 
+        }
+        .type-mismatch { border-left: 6px solid #ef4444; background: #fee2e2; }
+        .type-lowconf { border-left: 6px solid #f59e0b; background: #fef3c7; }
+        .type-unrecognized { border-left: 6px solid #3b82f6; background: #dbeafe; }
+        
+        button { 
+            padding: 14px 32px; 
+            font-size: 17px; 
+            background: #2563eb; 
+            color: white; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+        }
         button:hover { background: #1d4ed8; }
-        button:disabled { background: #94a3b8; cursor: not-allowed; }
-        .warning { color: #d32f2f; font-weight: bold; }
-        .note { font-style: italic; color: #666; margin-top: 8px; }
+        button:disabled { background: #94a3b8; }
+        
+        .info-label { font-weight: bold; color: #444; }
+        textarea { width: 100%; min-height: 120px; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Student Answer Review</h1>
         
-        <div class="auth-info" id="authInfo" style="display:none;">
-            <strong>MTurk Worker ID:</strong> <span id="workerId">Loading...</span><br>
-            <strong>Assignment ID:</strong> <span id="assignmentId">Loading...</span><br>
-            <strong>HIT ID:</strong> <span id="hitId">Loading...</span>
-        </div>
-
-        <div class="header-info">
-            <strong>Student:</strong> <span id="studentName">Unknown</span><br>
-            <strong>Worksheet:</strong> <span id="worksheetTitle">Unknown</span><br>
-            <span id="totalInfo" style="display:none;">
-                <strong>Items to Review:</strong> <span id="totalItems" class="warning"></span>
-            </span><br>
-            <span id="batchInfo" style="display:none;">
-                <strong>Batch ID:</strong> <span id="batchId"></span> | 
-                <strong>Page:</strong> <span id="pageIndex"></span>
-            </span>
+        <div class="header" id="headerInfo">
+            <!-- Populated by JS -->
         </div>
 
         <div id="questionsContainer"></div>
 
         <h3>Overall Comments (Optional)</h3>
-        <textarea id="overallComments" rows="6" style="width:100%;"></textarea>
+        <textarea id="overallComments" placeholder="Add any general feedback here..."></textarea>
 
         <br><br>
         <button onclick="submitHIT()" id="submitBtn">Submit Review to MTurk</button>
@@ -56,154 +54,104 @@
 
     <script>
         const params = new URLSearchParams(window.location.search);
+        let reviewData = { reviewItems: [] };
 
-        // MTurk Worker Authentication
-        const workerId = params.get('workerId');
-        const assignmentId = params.get('assignmentId');
-        const hitId = params.get('hitId');
-
-        if (workerId) {
-            document.getElementById('workerId').textContent = workerId;
-            document.getElementById('assignmentId').textContent = assignmentId || 'N/A';
-            document.getElementById('hitId').textContent = hitId || 'N/A';
-            document.getElementById('authInfo').style.display = 'block';
-        } else {
-            document.getElementById('authInfo').innerHTML = `<strong style="color:#d32f2f;">⚠️ Warning: Not accessed through MTurk</strong>`;
-            document.getElementById('authInfo').style.display = 'block';
-        }
-
-        if (!assignmentId) {
-            document.getElementById('submitBtn').disabled = true;
-        }
-
-        // Parse data from URL
-        let reviewData = {
-            studentName: params.get('student') || 'Unknown',
-            worksheetTitle: params.get('worksheet') || 'Unknown',
-            totalItemsToReview: 0,
-            reviewItems: []
-        };
-
+        // Load data from URL parameter
         const dataParam = params.get('data');
         if (dataParam) {
             try {
-                const parsed = JSON.parse(decodeURIComponent(dataParam));
-                reviewData = { ...reviewData, ...parsed };
+                reviewData = JSON.parse(decodeURIComponent(dataParam));
             } catch (e) {
-                console.error("Failed to parse data:", e);
+                console.error("Failed to parse review data", e);
             }
         }
 
         // Populate header
-        document.getElementById('studentName').textContent = reviewData.studentName || reviewData.student || 'Unknown';
-        document.getElementById('worksheetTitle').textContent = reviewData.worksheetTitle || reviewData.worksheet || 'Unknown';
+        const header = document.getElementById('headerInfo');
+        header.innerHTML = `
+            <strong>Student:</strong> ${reviewData.studentName || params.get('student') || 'Unknown'}<br>
+            <strong>Worksheet:</strong> ${reviewData.worksheetTitle || params.get('worksheet') || 'Unknown'}<br>
+            <strong>Items to Review:</strong> ${reviewData.totalItemsToReview || reviewData.reviewItems?.length || 0}
+        `;
 
-        if (reviewData.totalItemsToReview > 0) {
-            document.getElementById('totalItems').textContent = reviewData.totalItemsToReview;
-            document.getElementById('totalInfo').style.display = 'inline';
-        }
-
-        // Batch info
-        const batchId = params.get('batchId');
-        const pageIndex = params.get('pageIndex');
-        if (batchId || pageIndex) {
-            document.getElementById('batchInfo').style.display = 'inline';
-            if (batchId) document.getElementById('batchId').textContent = batchId;
-            if (pageIndex) document.getElementById('pageIndex').textContent = pageIndex;
-        }
-
-        // === Render Review Items (Fixed) ===
+        // Render questions
         const container = document.getElementById('questionsContainer');
-        
-        const items = reviewData.reviewItems || reviewData.mismatches || [];   // Support both old and new
+        const items = reviewData.reviewItems || [];
 
-        if (items.length > 0) {
-            items.forEach(item => {
-                const num = item.Number || item.number || '';
-                const type = item.Type || item.type || 'Mismatch';
-                const notes = item.Notes || item.notes || '';
+        items.forEach(item => {
+            const num = item.Number || item.number || '';
+            const type = item.Type || item.type || 'Mismatch';
 
-                let typeClass = 'type-mismatch';
-                if (type === 'LowConfidence') typeClass = 'type-lowconf';
-                if (type === 'Unrecognized') typeClass = 'type-unrecognized';
+            let typeClass = 'type-mismatch';
+            if (type === 'LowConfidence') typeClass = 'type-lowconf';
+            if (type === 'Unrecognized') typeClass = 'type-unrecognized';
 
-                const html = `
-                    <div class="q ${typeClass}">
-                        <strong>Problem #${num}:</strong> ${item.Question || item.question}<br/>
-                        <strong style="color:#666;">Type:</strong> <strong>${type}</strong><br/><br/>
-                        
-                        <strong>Student Answer:</strong> <span class="student">${item.StudentAnswer || item.studentAnswer || '—'}</span><br/>
-                        <strong>Correct Answer:</strong> <span class="correct">${item.CorrectAnswer || item.correctAnswer || '—'}</span><br/><br/>
-                        
-                        ${notes ? `<div class="note"><strong>Notes:</strong> ${notes}</div><br/>` : ''}
-                        
-                        <strong>Your Review:</strong><br/>
-                        <label><input type="radio" name="review_${num}" value="acceptable" required> Acceptable / Minor variation</label><br/>
-                        <label><input type="radio" name="review_${num}" value="incorrect"> Clearly Incorrect</label><br/><br/>
-                        
-                        <strong>Your Corrected Answer (if needed):</strong><br/>
-                        <input type="text" name="correction_${num}" placeholder="Enter corrected answer" style="width:100%; padding:8px;">
-                    </div>`;
-                container.innerHTML += html;
-            });
-        } else {
-            container.innerHTML = '<p style="color:#666; font-size:1.1em;">No items found for review.</p>';
-        }
+            const html = `
+                <div class="q ${typeClass}">
+                    <strong>Problem #${num}:</strong> ${item.Question || item.question || ''}<br/><br/>
+                    <strong>Student Answer:</strong> <span style="color:#d32f2f; font-weight:bold;">${item.StudentAnswer || item.studentAnswer || '—'}</span><br/>
+                    <strong>Correct Answer:</strong> <span style="color:#166534; font-weight:bold;">${item.CorrectAnswer || item.correctAnswer || '—'}</span><br/><br/>
+                    
+                    <strong>Your Review:</strong><br/>
+                    <label><input type="radio" name="review_${num}" value="acceptable"> Acceptable / Minor variation</label><br/>
+                    <label><input type="radio" name="review_${num}" value="incorrect"> Clearly Incorrect</label><br/><br/>
+                    
+                    <strong>Corrected Answer (if needed):</strong><br/>
+                    <input type="text" name="correction_${num}" placeholder="Enter corrected answer" style="width:100%; padding:8px; box-sizing:border-box;">
+                </div>`;
+            container.innerHTML += html;
+        });
 
         // Submit function
         function submitHIT() {
-            if (!assignmentId) {
-                alert("Error: Missing Assignment ID.");
-                return;
-            }
-
-            const reviewedItems = [];
-            (items || []).forEach(item => {
+            const reviewedItems = items.map(item => {
                 const num = item.Number || item.number || '';
-                const reviewRadio = document.querySelector(`input[name="review_${num}"]:checked`);
-                const correctionInput = document.querySelector(`input[name="correction_${num}"]`);
+                const radio = document.querySelector(`input[name="review_${num}"]:checked`);
+                const correction = document.querySelector(`input[name="correction_${num}"]`);
 
-                reviewedItems.push({
+                return {
                     number: num,
                     question: item.Question || item.question,
                     studentAnswer: item.StudentAnswer || item.studentAnswer,
                     correctAnswer: item.CorrectAnswer || item.correctAnswer,
                     type: item.Type || item.type,
-                    review: reviewRadio ? reviewRadio.value : null,
-                    correctedAnswer: correctionInput ? correctionInput.value.trim() : ""
-                });
+                    review: radio ? radio.value : null,
+                    correctedAnswer: correction ? correction.value.trim() : ""
+                };
             });
 
             const finalData = {
-                workerId: workerId,
-                assignmentId: assignmentId,
-                hitId: hitId,
+                workerId: params.get('workerId'),
+                assignmentId: params.get('assignmentId'),
+                hitId: params.get('hitId'),
                 student: reviewData.studentName,
                 worksheet: reviewData.worksheetTitle,
+                batchId: params.get('batchId'),
+                pageIndex: params.get('pageIndex'),
                 totalItemsReviewed: reviewedItems.length,
                 reviewedItems: reviewedItems,
                 overallComments: document.getElementById('overallComments').value.trim(),
                 timestamp: new Date().toISOString()
             };
 
+            // MTurk submission
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit';
+            form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit'; // Change to production when ready
 
-            const assignInput = document.createElement('input');
-            assignInput.type = 'hidden';
-            assignInput.name = 'assignmentId';
-            assignInput.value = assignmentId;
-            form.appendChild(assignInput);
-
-            const dataInput = document.createElement('input');
-            dataInput.type = 'hidden';
-            dataInput.name = 'answer';
-            dataInput.value = JSON.stringify(finalData);
-            form.appendChild(dataInput);
+            form.appendChild(createHiddenInput('assignmentId', params.get('assignmentId')));
+            form.appendChild(createHiddenInput('answer', JSON.stringify(finalData)));
 
             document.body.appendChild(form);
             form.submit();
+        }
+
+        function createHiddenInput(name, value) {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = value || '';
+            return input;
         }
     </script>
 </body>
