@@ -137,7 +137,8 @@
             // MTurk submission
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit'; // Change to production when ready
+            //form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit'; // Change to production when ready
+            form.action = 'https://www.mturk.com/mturk/externalSubmit';
 
             form.appendChild(createHiddenInput('assignmentId', params.get('assignmentId')));
             form.appendChild(createHiddenInput('answer', JSON.stringify(finalData)));
