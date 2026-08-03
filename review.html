@@ -31,7 +31,6 @@
         button:hover { background: #1d4ed8; }
         button:disabled { background: #94a3b8; }
         
-        .info-label { font-weight: bold; color: #444; }
         textarea { width: 100%; min-height: 120px; padding: 10px; border-radius: 6px; border: 1px solid #cbd5e1; }
     </style>
 </head>
@@ -39,10 +38,7 @@
     <div class="container">
         <h1>Student Answer Review</h1>
         
-        <div class="header" id="headerInfo">
-            <!-- Populated by JS -->
-        </div>
-
+        <div class="header" id="headerInfo"></div>
         <div id="questionsContainer"></div>
 
         <h3>Overall Comments (Optional)</h3>
@@ -56,6 +52,12 @@
         const params = new URLSearchParams(window.location.search);
         let reviewData = { reviewItems: [] };
 
+        // URL params (authoritative for batch/page)
+        const batchId = params.get('batchId') || '';
+        const pageIndex = params.get('pageIndex') || '';
+        const studentFromUrl = params.get('student') || '';
+        const worksheetFromUrl = params.get('worksheet') || '';
+
         // Load data from URL parameter
         const dataParam = params.get('data');
         if (dataParam) {
@@ -66,18 +68,21 @@
             }
         }
 
-        // Populate header
-        const header = document.getElementById('headerInfo');
-        header.innerHTML = `
-            <strong>Student:</strong> ${reviewData.studentName || params.get('student') || 'Unknown'}<br>
-            <strong>Worksheet:</strong> ${reviewData.worksheetTitle || params.get('worksheet') || 'Unknown'}<br>
-            <strong>Items to Review:</strong> ${reviewData.totalItemsToReview || reviewData.reviewItems?.length || 0}
+        const studentName = reviewData.studentName || studentFromUrl || 'Unknown';
+        const worksheetTitle = reviewData.worksheetTitle || worksheetFromUrl || 'Unknown';
+        const items = reviewData.reviewItems || [];
+        const totalItems = reviewData.totalItemsToReview || items.length || 0;
+
+        // Populate header (now shows BatchId)
+        document.getElementById('headerInfo').innerHTML = `
+            <strong>Student:</strong> ${studentName}<br>
+            <strong>Worksheet:</strong> ${worksheetTitle}<br>
+            <strong>Items to Review:</strong> ${totalItems}<br>
+            <strong>Batch ID:</strong> ${batchId || '(none)'} | <strong>Page:</strong> ${pageIndex || '(none)'}
         `;
 
         // Render questions
         const container = document.getElementById('questionsContainer');
-        const items = reviewData.reviewItems || [];
-
         items.forEach(item => {
             const num = item.Number || item.number || '';
             const type = item.Type || item.type || 'Mismatch';
@@ -86,7 +91,7 @@
             if (type === 'LowConfidence') typeClass = 'type-lowconf';
             if (type === 'Unrecognized') typeClass = 'type-unrecognized';
 
-            const html = `
+            container.innerHTML += `
                 <div class="q ${typeClass}">
                     <strong>Problem #${num}:</strong> ${item.Question || item.question || ''}<br/><br/>
                     <strong>Student Answer:</strong> <span style="color:#d32f2f; font-weight:bold;">${item.StudentAnswer || item.studentAnswer || '—'}</span><br/>
@@ -99,10 +104,8 @@
                     <strong>Corrected Answer (if needed):</strong><br/>
                     <input type="text" name="correction_${num}" placeholder="Enter corrected answer" style="width:100%; padding:8px; box-sizing:border-box;">
                 </div>`;
-            container.innerHTML += html;
         });
 
-        // Submit function
         function submitHIT() {
             const reviewedItems = items.map(item => {
                 const num = item.Number || item.number || '';
@@ -120,25 +123,25 @@
                 };
             });
 
+            // CRITICAL: always include batchId / pageIndex
             const finalData = {
                 workerId: params.get('workerId'),
                 assignmentId: params.get('assignmentId'),
                 hitId: params.get('hitId'),
-                student: reviewData.studentName,
-                worksheet: reviewData.worksheetTitle,
-                batchId: params.get('batchId'),
-                pageIndex: params.get('pageIndex'),
+                student: studentName,
+                worksheet: worksheetTitle,
+                batchId: batchId,                    // ← guaranteed
+                pageIndex: pageIndex,                // ← guaranteed
                 totalItemsReviewed: reviewedItems.length,
                 reviewedItems: reviewedItems,
                 overallComments: document.getElementById('overallComments').value.trim(),
                 timestamp: new Date().toISOString()
             };
 
-            // MTurk submission
             const form = document.createElement('form');
             form.method = 'POST';
-            form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit'; // Change to production when ready
-            //form.action = 'https://www.mturk.com/mturk/externalSubmit';
+            //form.action = 'https://workersandbox.mturk.com/mturk/externalSubmit'; // change to production later
+            form.action = 'https://www.mturk.com/mturk/externalSubmit';
 
             form.appendChild(createHiddenInput('assignmentId', params.get('assignmentId')));
             form.appendChild(createHiddenInput('answer', JSON.stringify(finalData)));
